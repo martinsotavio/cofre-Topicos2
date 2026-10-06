@@ -1,0 +1,1174 @@
+{
+  "info": {
+    "name": "Cofre de Senhas API",
+    "description": "Rotas da API do cofre de senhas. Rode as pastas em ordem (ou o Collection Runner): o login guarda o token e as criações guardam os IDs nas variáveis da coleção.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Gera um e-mail único por execução para o registro não dar 409",
+          "if (!pm.collectionVariables.get('email')) {",
+          "  pm.collectionVariables.set('email', 'maria' + Date.now() + '@email.com');",
+          "}",
+          "",
+          "// Faz o papel do app autenticador: calcula o código TOTP atual a partir do segredo do 2FA",
+          "const segredo = pm.collectionVariables.get('segredo2fa');",
+          "if (segredo) {",
+          "  const CryptoJS = require('crypto-js');",
+          "  const alfabeto = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';",
+          "  const bits = segredo.replace(/=+$/, '').split('').map((c) => alfabeto.indexOf(c).toString(2).padStart(5, '0')).join('');",
+          "  const hex = bits.match(/.{8}/g).map((b) => parseInt(b, 2).toString(16).padStart(2, '0')).join('');",
+          "  const contador = Math.floor(Date.now() / 1000 / 30).toString(16).padStart(16, '0');",
+          "  const hmac = CryptoJS.HmacSHA1(CryptoJS.enc.Hex.parse(contador), CryptoJS.enc.Hex.parse(hex)).toString();",
+          "  const offset = parseInt(hmac.slice(-1), 16);",
+          "  const codigo = (parseInt(hmac.substr(offset * 2, 8), 16) & 0x7fffffff) % 1000000;",
+          "  pm.collectionVariables.set('codigo2fa', String(codigo).padStart(6, '0'));",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "email",
+      "value": ""
+    },
+    {
+      "key": "senha",
+      "value": "senhaForte123"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "pastaId",
+      "value": ""
+    },
+    {
+      "key": "credencialId",
+      "value": ""
+    },
+    {
+      "key": "segredo2fa",
+      "value": ""
+    },
+    {
+      "key": "codigo2fa",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Registro",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/registro",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "registro"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Maria Silva\",\n  \"email\": \"{{email}}\",\n  \"senha\": \"{{senha}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const corpo = pm.response.json();",
+                  "if (corpo.token) pm.collectionVariables.set('token', corpo.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"senha\": \"{{senha}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login com senha errada",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"senha\": \"senhaErrada\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Usuários",
+      "item": [
+        {
+          "name": "Meus dados",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios",
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Atualizar meus dados",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios",
+                "me"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Maria S. Silva\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Pastas",
+      "item": [
+        {
+          "name": "Criar pasta",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "const corpo = pm.response.json();",
+                  "if (corpo.id) pm.collectionVariables.set('pastaId', corpo.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pastas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pastas"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Bancos\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Listar pastas",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pastas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pastas"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Buscar pasta",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pastas/{{pastaId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pastas",
+                "{{pastaId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Renomear pasta",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pastas/{{pastaId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pastas",
+                "{{pastaId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Bancos e cartões\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Credenciais",
+      "item": [
+        {
+          "name": "Criar credencial",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "const corpo = pm.response.json();",
+                  "if (corpo.id) pm.collectionVariables.set('credencialId', corpo.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/credenciais",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "credenciais"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titulo\": \"GitHub\",\n  \"url\": \"https://github.com\",\n  \"login\": \"maria\",\n  \"senha\": \"minha-senha-secreta\",\n  \"notas\": \"Conta pessoal\",\n  \"pastaId\": {{pastaId}}\n}"
+            }
+          }
+        },
+        {
+          "name": "Listar credenciais",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/credenciais",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "credenciais"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Buscar por título",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/credenciais?busca=Git",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "credenciais"
+              ],
+              "query": [
+                {
+                  "key": "busca",
+                  "value": "Git"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Filtrar por pasta",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/credenciais?pastaId={{pastaId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "credenciais"
+              ],
+              "query": [
+                {
+                  "key": "pastaId",
+                  "value": "{{pastaId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Buscar credencial",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/credenciais/{{credencialId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "credenciais",
+                "{{credencialId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Atualizar credencial",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/credenciais/{{credencialId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "credenciais",
+                "{{credencialId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notas\": \"Conta pessoal - 2FA ativo\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Pasta com suas credenciais (relacionamento)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('traz as credenciais da pasta', () => pm.expect(pm.response.json().credenciais).to.be.an('array').that.is.not.empty);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pastas/{{pastaId}}/credenciais",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pastas",
+                "{{pastaId}}",
+                "credenciais"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Revelar senha",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('senha decifrada', () => pm.expect(pm.response.json().senha).to.eql('minha-senha-secreta'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/credenciais/{{credencialId}}/revelar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "credenciais",
+                "{{credencialId}}",
+                "revelar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Histórico de acesso",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/credenciais/{{credencialId}}/logs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "credenciais",
+                "{{credencialId}}",
+                "logs"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2FA",
+      "item": [
+        {
+          "name": "Ativar 2FA (gera QR code)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const corpo = pm.response.json();",
+                  "if (corpo.segredo) pm.collectionVariables.set('segredo2fa', corpo.segredo);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/2fa/ativar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "2fa",
+                "ativar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Confirmar 2FA com o código do app",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/2fa/verificar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "2fa",
+                "verificar"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codigo\": \"{{codigo2fa}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login sem código (pede 2FA)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));",
+                  "pm.test('pede o código', () => pm.expect(pm.response.json().codigo).to.eql('TOTP_REQUIRED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"senha\": \"{{senha}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login com código",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const corpo = pm.response.json();",
+                  "if (corpo.token) pm.collectionVariables.set('token', corpo.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"senha\": \"{{senha}}\",\n  \"codigo\": \"{{codigo2fa}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Desativar 2FA",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('segredo2fa', '');",
+                  "pm.collectionVariables.set('codigo2fa', '');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/2fa/desativar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "2fa",
+                "desativar"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"senha\": \"{{senha}}\",\n  \"codigo\": \"{{codigo2fa}}\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Gerador",
+      "item": [
+        {
+          "name": "Gerar senha",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/gerador?tamanho=20&maiusculas=true&numeros=true&simbolos=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "gerador"
+              ],
+              "query": [
+                {
+                  "key": "tamanho",
+                  "value": "20"
+                },
+                {
+                  "key": "maiusculas",
+                  "value": "true"
+                },
+                {
+                  "key": "numeros",
+                  "value": "true"
+                },
+                {
+                  "key": "simbolos",
+                  "value": "true"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Gerar senha inválida (tamanho < 8)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/gerador?tamanho=4",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "gerador"
+              ],
+              "query": [
+                {
+                  "key": "tamanho",
+                  "value": "4"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Erros",
+      "item": [
+        {
+          "name": "Sem token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios",
+                "me"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "ID inválido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pastas/abc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pastas",
+                "abc"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Rota inexistente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/nao-existe",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "nao-existe"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Limpeza",
+      "item": [
+        {
+          "name": "Excluir credencial",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/credenciais/{{credencialId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "credenciais",
+                "{{credencialId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Excluir pasta",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pastas/{{pastaId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pastas",
+                "{{pastaId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Excluir minha conta",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));",
+                  "pm.collectionVariables.set('email', '');",
+                  "pm.collectionVariables.set('token', '');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios",
+                "me"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

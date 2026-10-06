@@ -1,0 +1,62 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Usuario {
+  id          Int          @id @default(autoincrement())
+  nome        String
+  email       String       @unique
+  senhaHash   String
+  // 2FA (TOTP): segredo cifrado com AES-256-GCM; só vale no login quando totpAtivo = true
+  totpSecret  String?
+  totpAtivo   Boolean      @default(false)
+  criadoEm    DateTime     @default(now())
+  pastas      Pasta[]
+  credenciais Credencial[]
+  logs        LogAcesso[]
+}
+
+model Pasta {
+  id          Int          @id @default(autoincrement())
+  nome        String
+  usuarioId   Int
+  usuario     Usuario      @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  credenciais Credencial[]
+  criadoEm    DateTime     @default(now())
+
+  @@unique([usuarioId, nome])
+}
+
+model Credencial {
+  id           Int         @id @default(autoincrement())
+  titulo       String
+  url          String?
+  login        String?
+  // Senha cifrada com AES-256-GCM (nunca armazenada em texto puro)
+  senhaCifrada String
+  iv           String
+  authTag      String
+  notas        String?
+  pastaId      Int?
+  pasta        Pasta?      @relation(fields: [pastaId], references: [id], onDelete: SetNull)
+  usuarioId    Int
+  usuario      Usuario     @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  criadoEm     DateTime    @default(now())
+  atualizadoEm DateTime    @updatedAt
+  logs         LogAcesso[]
+}
+
+model LogAcesso {
+  id           Int        @id @default(autoincrement())
+  acao         String
+  usuarioId    Int
+  usuario      Usuario    @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  credencialId Int
+  credencial   Credencial @relation(fields: [credencialId], references: [id], onDelete: Cascade)
+  criadoEm     DateTime   @default(now())
+}
