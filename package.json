@@ -2,6 +2,11 @@
   "name": "cofre-de-senhas-api",
   "version": "1.0.0",
   "description": "API REST de cofre de senhas - Tópicos de Desenvolvimento 2",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/martinsotavio/cofre-Topicos2.git"
+  },
+  "homepage": "https://github.com/martinsotavio/cofre-Topicos2#readme",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",

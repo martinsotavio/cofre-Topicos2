@@ -4,6 +4,8 @@ API RESTful de um gerenciador de senhas, desenvolvida para a disciplina **Tópic
 
 O usuário cria uma conta, se autentica com JWT (com 2FA opcional por app autenticador) e guarda credenciais (sites, logins e senhas) organizadas em pastas. As senhas guardadas ficam **cifradas no banco com AES-256-GCM** e só são decifradas sob demanda, com registro em log de acesso.
 
+**Repositório:** https://github.com/martinsotavio/cofre-Topicos2
+
 Este repositório contém o **back-end**. O **front-end** será desenvolvido ao longo do semestre (veja [Próximos passos](#próximos-passos)).
 
 ## Tecnologias
@@ -23,6 +25,8 @@ Este repositório contém o **back-end**. O **front-end** será desenvolvido ao 
 Pré-requisito: Node.js 22 ou superior.
 
 ```bash
+git clone https://github.com/martinsotavio/cofre-Topicos2.git
+cd cofre-Topicos2
 npm install
 cp .env.example .env          # preencha JWT_SECRET e VAULT_KEY (comando de geração no próprio arquivo)
 npx prisma migrate deploy     # cria o banco SQLite (prisma/dev.db)
