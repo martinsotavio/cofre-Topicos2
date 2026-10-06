@@ -4,6 +4,18 @@ API RESTful de um gerenciador de senhas, desenvolvida para a disciplina **Tópic
 
 O usuário cria uma conta, se autentica com JWT (com 2FA opcional por app autenticador) e guarda credenciais (sites, logins e senhas) organizadas em pastas. As senhas guardadas ficam **cifradas no banco com AES-256-GCM** e só são decifradas sob demanda, com registro em log de acesso.
 
+## Requisitos do trabalho
+
+| Requisito | Onde está |
+|---|---|
+| Ao menos três recursos | `usuarios`, `pastas` e `credenciais` (mais o histórico em `logs`) |
+| Relacionamento funcional | `GET /pastas/:id/credenciais` retorna a pasta com as credenciais dela |
+| Registro, login com JWT e rotas protegidas | `POST /auth/registro`, `POST /auth/login` e cabeçalho `Authorization: Bearer <token>` |
+| Banco de dados com ORM | SQLite com Prisma (`prisma/schema.prisma`) |
+| Tratamento de erros | formato único `{ erro, codigo, detalhes }`, veja [Erros](#erros) |
+| Testes para todos os recursos | 75 testes com Jest + Supertest em `tests/` |
+| Ponto extra: Swagger | documentação funcional em `/docs` |
+
 ## Stack
 
 | Camada | Tecnologia |
@@ -24,6 +36,8 @@ cp .env.example .env          # preencha JWT_SECRET e VAULT_KEY (comando de gera
 npx prisma migrate deploy     # cria o banco SQLite (prisma/dev.db)
 npm run dev                   # http://localhost:3000  •  docs em http://localhost:3000/docs
 ```
+
+Se a API rodar atrás de um proxy ou túnel (Cloudflare, Render etc.), defina `TRUST_PROXY=1` no `.env` para o rate limit usar o IP real de cada cliente.
 
 Testes (usam um banco separado, `prisma/test.db`, recriado a cada execução):
 
@@ -49,7 +63,7 @@ Usuario 1──N Credencial
 Credencial 1──N LogAcesso
 ```
 
-- **Usuario**: nome, e-mail (único), `senhaHash` (bcrypt). Campos `totpSecret`/`totpAtivo` reservados para 2FA.
+- **Usuario**: nome, e-mail (único), `senhaHash` (bcrypt), `totpSecret` (segredo do 2FA, cifrado) e `totpAtivo`.
 - **Pasta**: nome (único por usuário).
 - **Credencial**: título, url, login, notas, `senhaCifrada` + `iv` + `authTag`. Pasta opcional.
 - **LogAcesso**: ações `CRIAR`, `ATUALIZAR`, `REVELAR` em cada credencial.
@@ -108,6 +122,10 @@ Todas as respostas de erro seguem o mesmo formato:
 | 413 | `PAYLOAD_TOO_LARGE` (corpo acima de 100kb) |
 | 429 | `TOO_MANY_REQUESTS` |
 | 500 | `INTERNAL_ERROR` |
+
+## Limitações conhecidas
+
+- O JWT não tem lista de revogação: depois de trocar a senha, um token antigo continua válido até expirar (1h). Excluir a conta, por outro lado, invalida o token na hora.
 
 ## Próximos passos
 

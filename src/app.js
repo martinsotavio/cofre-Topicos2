@@ -6,6 +6,9 @@ const { errorHandler, rotaNaoEncontrada } = require('./middlewares/errorHandler'
 
 const app = express();
 
+// Atrás de proxy/túnel (Cloudflare, Render...), usa o IP real do cliente no rate limit
+if (process.env.TRUST_PROXY) app.set('trust proxy', Number(process.env.TRUST_PROXY));
+
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(openapi, { customSiteTitle: 'Cofre de Senhas API' }));
 app.get('/docs.json', (req, res) => res.json(openapi));
 
